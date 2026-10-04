@@ -1,0 +1,1673 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0a0e1a" />
+<title>MOBA Web 5v5</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body {
+    width:100%; height:100%; overflow:hidden;
+    background:#05070d; color:#fff;
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    user-select:none; -webkit-user-select:none; touch-action:none;
+  }
+  #renderCanvas { width:100%; height:100%; display:block; outline:none; touch-action:none; }
+
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:10; }
+
+  #topbar {
+    position:absolute; top:calc(env(safe-area-inset-top,8px) + 4px); left:50%;
+    transform:translateX(-50%);
+    display:flex; gap:14px; align-items:center;
+    background:linear-gradient(180deg, rgba(15,25,45,0.9), rgba(8,15,30,0.85));
+    backdrop-filter:blur(10px);
+    padding:6px 18px; border-radius:22px;
+    border:1px solid rgba(90,160,255,0.45);
+    box-shadow:0 4px 24px rgba(60,140,255,0.25), inset 0 1px 0 rgba(255,255,255,0.1);
+    font-size:13px; font-weight:700; letter-spacing:0.3px;
+  }
+  .team-blue { color:#4aa3ff; text-shadow:0 0 8px rgba(74,163,255,0.6); }
+  .team-red  { color:#ff5a5a; text-shadow:0 0 8px rgba(255,90,90,0.6); }
+  #timer { color:#ffd566; font-variant-numeric:tabular-nums; text-shadow:0 0 8px rgba(255,213,102,0.5); }
+
+  #heroPanel {
+    position:absolute;
+    top:calc(env(safe-area-inset-top,8px) + 6px);
+    left:calc(env(safe-area-inset-left,8px) + 6px);
+    width:180px;
+    background:linear-gradient(135deg, rgba(10,20,40,0.75), rgba(5,12,25,0.65));
+    backdrop-filter:blur(8px);
+    border-radius:12px; padding:8px 10px;
+    border:1px solid rgba(80,140,255,0.35);
+    box-shadow:0 4px 20px rgba(0,0,0,0.5);
+  }
+  #heroPortrait {
+    width:38px; height:38px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #4a90e2, #1a3a6b);
+    border:2px solid #6ab0ff;
+    display:inline-flex; justify-content:center; align-items:center;
+    box-shadow:0 0 12px rgba(90,170,255,0.7), inset 0 0 8px rgba(255,255,255,0.25);
+    margin-right:8px; font-size:20px; text-shadow:0 0 4px #000;
+  }
+  #heroName { font-size:12px; font-weight:800; letter-spacing:0.5px;
+    text-shadow:0 0 6px rgba(106,168,255,0.8); color:#8dc4ff; }
+  .bar {
+    height:11px; border-radius:6px; overflow:hidden;
+    background:rgba(0,0,0,0.65); border:1px solid rgba(255,255,255,0.15);
+    margin-top:6px; position:relative;
+    box-shadow:inset 0 2px 4px rgba(0,0,0,0.6);
+  }
+  .bar > i { display:block; height:100%; width:100%; transition:width 0.2s linear; }
+  .bar-hp > i { background:linear-gradient(90deg, #1a8c3a, #4ade80, #86efac); box-shadow:0 0 10px rgba(74,222,128,0.6); }
+  .bar-mp > i { background:linear-gradient(90deg, #1e40af, #3b82f6, #60a5fa); box-shadow:0 0 10px rgba(59,130,246,0.6); }
+  .bar-label {
+    position:absolute; inset:0; text-align:center;
+    font-size:9px; font-weight:800; line-height:11px;
+    color:#fff; text-shadow:0 0 3px #000, 0 0 6px #000;
+  }
+
+  #statsPanel {
+    position:absolute;
+    top:calc(env(safe-area-inset-top,8px) + 6px);
+    right:calc(env(safe-area-inset-right,8px) + 6px);
+    text-align:right;
+    font-size:12px; font-weight:700;
+    text-shadow:0 0 6px #000;
+    background:linear-gradient(135deg, rgba(10,20,40,0.7), rgba(5,12,25,0.6));
+    backdrop-filter:blur(8px);
+    padding:8px 12px; border-radius:12px;
+    border:1px solid rgba(80,140,255,0.3);
+  }
+  #gold { color:#ffd566; font-size:16px; font-weight:900;
+    text-shadow:0 0 10px rgba(255,213,102,0.7); }
+
+  #joystickLeft, #joystickRight {
+    position:absolute; bottom:calc(env(safe-area-inset-bottom,10px) + 10px);
+    width:38vw; max-width:200px; height:38vw; max-height:200px;
+    pointer-events:auto; touch-action:none;
+  }
+  #joystickLeft  { left:calc(env(safe-area-inset-left,10px) + 5px); }
+  #joystickRight { right:calc(env(safe-area-inset-right,10px) + 5px); }
+
+  #skills {
+    position:absolute;
+    right:calc(env(safe-area-inset-right,10px) + 14px);
+    bottom:calc(env(safe-area-inset-bottom,10px) + 16px);
+    display:flex; gap:10px; pointer-events:auto;
+    flex-direction:row-reverse; align-items:flex-end;
+  }
+  .skill {
+    width:62px; height:62px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, rgba(90,140,220,0.9), rgba(15,30,60,0.95));
+    border:2px solid rgba(120,180,255,0.65);
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    color:#e0eeff; font-weight:800; font-size:18px;
+    box-shadow:0 0 16px rgba(80,140,255,0.5), inset 0 0 12px rgba(100,180,255,0.3), 0 4px 12px rgba(0,0,0,0.6);
+    position:relative; overflow:hidden;
+    cursor:pointer; transition:transform 0.08s;
+  }
+  .skill:active { transform:scale(0.92); }
+  .skill.active {
+    background:radial-gradient(circle at 35% 30%, #ff8a3a, #7a2a0a);
+    border-color:#ffaa66;
+    box-shadow:0 0 24px rgba(255,140,60,0.8), inset 0 0 16px rgba(255,180,80,0.5);
+  }
+  .skill .lbl { font-size:8px; opacity:0.8; font-weight:700; margin-top:1px; letter-spacing:0.5px; }
+  .skill .cd {
+    position:absolute; inset:0; background:rgba(0,0,0,0.75);
+    display:none; justify-content:center; align-items:center;
+    font-size:20px; font-weight:900; color:#fff;
+    text-shadow:0 0 6px rgba(0,0,0,0.9);
+  }
+  .skill .cd.on { display:flex; }
+
+  #footer {
+    position:absolute;
+    bottom:calc(env(safe-area-inset-bottom,10px) + 4px);
+    left:50%; transform:translateX(-50%);
+    font-size:9px; opacity:0.4; letter-spacing:0.5px;
+    text-shadow:0 0 4px #000;
+  }
+
+  #fsHint {
+    position:fixed; inset:0; z-index:100;
+    background:
+      radial-gradient(circle at 50% 40%, rgba(30,60,120,0.5), rgba(5,8,18,0.97) 70%),
+      #05070d;
+    color:#cfe2ff;
+    display:flex; flex-direction:column;
+    justify-content:center; align-items:center;
+    text-align:center; padding:24px;
+    font-size:15px; line-height:1.6;
+    transition:opacity 0.4s;
+  }
+  #fsHint h1 {
+    font-size:28px; margin-bottom:6px; letter-spacing:2px;
+    background:linear-gradient(135deg, #6ab0ff, #00d2ff, #6ab0ff);
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text;
+    text-shadow:0 0 40px rgba(90,170,255,0.5);
+    font-weight:900;
+  }
+  #fsHint .sub { font-size:12px; opacity:0.6; letter-spacing:4px; margin-bottom:24px; }
+  #fsHint p { opacity:0.85; font-size:14px; line-height:1.8; }
+  #fsHint p b { color:#8dc4ff; }
+  #fsHint button {
+    margin-top:24px; padding:14px 40px;
+    background:linear-gradient(135deg, #2b6bd9, #00a8e8, #2b6bd9);
+    background-size:200% 100%;
+    border:none; border-radius:28px; color:#fff;
+    font-size:16px; font-weight:800; letter-spacing:2px;
+    cursor:pointer;
+    box-shadow:0 6px 30px rgba(0,180,255,0.5), inset 0 1px 0 rgba(255,255,255,0.3);
+    transition:all 0.2s;
+  }
+  #fsHint button:hover { transform:translateY(-2px); box-shadow:0 10px 40px rgba(0,180,255,0.7); }
+  #fsHint.hidden { opacity:0; pointer-events:none; }
+
+  #errorBox {
+    position:fixed; bottom:8px; left:8px; right:8px;
+    background:rgba(180,20,20,0.95); color:#fff;
+    padding:8px 12px; border-radius:8px;
+    font-size:11px; font-family:monospace;
+    display:none; z-index:999; max-height:30vh; overflow:auto;
+    word-break:break-all;
+  }
+
+  #rotate {
+    position:fixed; inset:0; z-index:200;
+    background:#05070d; color:#fff;
+    display:none; justify-content:center; align-items:center;
+    flex-direction:column; font-size:16px; gap:12px;
+  }
+  @media (orientation: portrait) and (max-width: 900px) {
+    #rotate { display:flex; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="renderCanvas"></canvas>
+
+<div id="hud">
+  <div id="topbar">
+    <span class="team-blue">◆ BLUE</span>
+    <span id="timer">00:00</span>
+    <span class="team-red">RED ◆</span>
+  </div>
+
+  <div id="heroPanel">
+    <div style="display:flex; align-items:center;">
+      <div id="heroPortrait">⚔</div>
+      <div id="heroName">BLADE<br><span style="font-size:9px;opacity:0.65;letter-spacing:1px;">FIGHTER · LV <span id="lvl">1</span></span></div>
+    </div>
+    <div class="bar bar-hp"><i id="hpFill" style="width:100%"></i><span class="bar-label" id="hpText">2600/2600</span></div>
+    <div class="bar bar-mp"><i id="mpFill" style="width:100%"></i><span class="bar-label" id="mpText">500/500</span></div>
+  </div>
+
+  <div id="statsPanel">
+    <div id="gold">💰 0</div>
+    <div style="opacity:0.55;font-size:10px;margin-top:2px;">FPS <span id="fps">60</span></div>
+    <div style="opacity:0.55;font-size:10px;">MINION <span id="minionCount">0</span></div>
+  </div>
+
+  <div id="joystickLeft"></div>
+  <div id="joystickRight"></div>
+
+  <div id="skills">
+    <div class="skill" data-slot="1">1<span class="lbl">SLASH</span><div class="cd" id="cd1"></div></div>
+    <div class="skill" data-slot="2">2<span class="lbl">DASH</span><div class="cd" id="cd2"></div></div>
+    <div class="skill" data-slot="3">3<span class="lbl">ULT</span><div class="cd" id="cd3"></div></div>
+  </div>
+
+  <div id="footer">MOBA WEB · BABYLON.JS · POINTER EVENTS · OBJECT POOL</div>
+</div>
+
+<div id="fsHint">
+  <h1>MOBA WEB</h1>
+  <div class="sub">5 V 5 · REALISTIC EDITION</div>
+  <p>
+    <b>Joystick kiri</b> — Jalan<br>
+    <b>Joystick kanan</b> — Arahkan skill<br>
+    <b>Tombol 1/2/3</b> — Cast skill<br>
+    <b>WASD + 1/2/3</b> — Desktop
+  </p>
+  <button id="startBtn">MULAI PERTEMPURAN</button>
+</div>
+
+<div id="rotate">
+  <div style="font-size:48px">📱↔️</div>
+  <div>Putar perangkat ke mode Landscape</div>
+</div>
+
+<div id="errorBox"></div>
+
+<!-- Global error handler SEBELUM script utama -->
+<script>
+  window.addEventListener("error", function(e) {
+    var box = document.getElementById("errorBox");
+    if (!box) return;
+    box.style.display = "block";
+    var msg = "[ERROR] " + (e.message || "?") + "\n" +
+              (e.filename || "") + ":" + (e.lineno || 0) + ":" + (e.colno || 0);
+    box.textContent = msg;
+    console.error(msg, e.error);
+  });
+  window.addEventListener("unhandledrejection", function(e) {
+    var box = document.getElementById("errorBox");
+    if (!box) return;
+    box.style.display = "block";
+    box.textContent = "[PROMISE] " + (e.reason && e.reason.message ? e.reason.message : String(e.reason));
+    console.error(e.reason);
+  });
+</script>
+
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+ *  MOBA WEB — Fixed Edition
+ *  Hierarki model (bukan MergeMeshes multi-material) untuk
+ *  kompatibilitas penuh dengan Babylon.js v9.
+ * ============================================================ */
+
+const CFG = {
+  MAP_SIZE: 128,
+  TICK: 1/30,
+  MINION_SPEED: 3.2,
+  HERO_SPEED: 6.2,
+  MINION_MAX: 48,
+  WAVE_INTERVAL: 30,
+  WAVE_SIZE: 3,
+  TOWER_RANGE: 13,
+  SHADOW_RES: 1024,
+};
+
+/* ---------- TEXTURE GENERATORS ---------- */
+function makeGrassTexture(scene, res) {
+  res = res || 512;
+  const dt = new BABYLON.DynamicTexture("grassTex", res, scene, false);
+  const ctx = dt.getContext();
+  const g = ctx.createRadialGradient(res/2, res/2, 0, res/2, res/2, res*0.8);
+  g.addColorStop(0, "#1c3320");
+  g.addColorStop(1, "#0e1a12");
+  ctx.fillStyle = g; ctx.fillRect(0,0,res,res);
+  for (let i=0;i<9000;i++) {
+    const x = Math.random()*res, y = Math.random()*res;
+    const gv = 30 + Math.random()*70;
+    ctx.fillStyle = "rgba(" + Math.floor(gv*0.5) + "," + Math.floor(gv+15) + "," + Math.floor(gv*0.4) + "," + (0.35+Math.random()*0.5) + ")";
+    ctx.fillRect(x,y, 1+Math.random()*2, 2+Math.random()*3);
+  }
+  dt.update(false);
+  dt.wrapU = dt.wrapV = BABYLON.Texture.WRAP_ADDRESSMODE;
+  dt.uScale = 10; dt.vScale = 10;
+  dt.anisotropicFilteringLevel = 4;
+  return dt;
+}
+
+function makeRoadTexture(scene, res) {
+  res = res || 512;
+  const dt = new BABYLON.DynamicTexture("roadTex", res, scene, false);
+  const ctx = dt.getContext();
+  ctx.fillStyle = "#2a2419"; ctx.fillRect(0,0,res,res);
+  for (let i=0;i<12000;i++) {
+    const x = Math.random()*res, y = Math.random()*res;
+    const v = 30 + Math.random()*60;
+    ctx.fillStyle = "rgba(" + (v+15) + "," + (v+5) + "," + (v-10) + "," + (0.3+Math.random()*0.5) + ")";
+    ctx.fillRect(x,y, 1+Math.random()*2, 1+Math.random()*2);
+  }
+  dt.update(false);
+  dt.wrapU = dt.wrapV = BABYLON.Texture.WRAP_ADDRESSMODE;
+  dt.anisotropicFilteringLevel = 4;
+  return dt;
+}
+
+function makeSkyTexture(scene, res) {
+  res = res || 512;
+  const dt = new BABYLON.DynamicTexture("skyTex", {width: res, height: res/2}, scene, false);
+  const ctx = dt.getContext();
+  const g = ctx.createLinearGradient(0, 0, 0, res/2);
+  g.addColorStop(0.00, "#050a18");
+  g.addColorStop(0.35, "#0d1a35");
+  g.addColorStop(0.65, "#1e3a6b");
+  g.addColorStop(0.85, "#4a6fa5");
+  g.addColorStop(1.00, "#8fa8c8");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, res, res/2);
+  for (let i=0;i<120;i++) {
+    const x = Math.random()*res, y = Math.random()*(res/4);
+    ctx.fillStyle = "rgba(255,255,255," + (0.15+Math.random()*0.5) + ")";
+    ctx.fillRect(x, y, 1, 1);
+  }
+  for (let i=0;i<40;i++) {
+    const x = Math.random()*res, y = res*0.28 + Math.random()*res*0.2;
+    const w = 40 + Math.random()*80, h = 6 + Math.random()*12;
+    const cg = ctx.createRadialGradient(x, y, 0, x, y, w);
+    cg.addColorStop(0, "rgba(140,160,200," + (0.06+Math.random()*0.08) + ")");
+    cg.addColorStop(1, "rgba(140,160,200,0)");
+    ctx.fillStyle = cg;
+    ctx.fillRect(x-w, y-h, w*2, h*2);
+  }
+  dt.update(false);
+  return dt;
+}
+
+function makeWaterTexture(scene, res) {
+  res = res || 256;
+  const dt = new BABYLON.DynamicTexture("waterTex", res, scene, false);
+  const ctx = dt.getContext();
+  ctx.fillStyle = "#0a2035"; ctx.fillRect(0,0,res,res);
+  for (let i=0;i<600;i++) {
+    const x = Math.random()*res, y = Math.random()*res;
+    const r = 2 + Math.random()*6;
+    const cg = ctx.createRadialGradient(x,y,0, x,y,r);
+    cg.addColorStop(0, "rgba(60,140,200," + (0.15+Math.random()*0.25) + ")");
+    cg.addColorStop(1, "rgba(60,140,200,0)");
+    ctx.fillStyle = cg;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  }
+  dt.update(false);
+  dt.wrapU = dt.wrapV = BABYLON.Texture.WRAP_ADDRESSMODE;
+  return dt;
+}
+
+/* ---------- OBJECT POOL ---------- */
+function ObjectPool(factory, reset, initialSize) {
+  this.factory = factory;
+  this.reset = reset;
+  this.available = [];
+  this.inUse = new Set();
+  for (let i=0;i<initialSize;i++) this.available.push(factory());
+}
+ObjectPool.prototype.acquire = function() {
+  const o = this.available.length ? this.available.pop() : this.factory();
+  this.inUse.add(o); return o;
+};
+ObjectPool.prototype.release = function(o) {
+  if (!this.inUse.has(o)) return;
+  this.inUse.delete(o); this.reset(o); this.available.push(o);
+};
+
+/* ---------- VIRTUAL JOYSTICK ---------- */
+function VirtualJoystick(container, deadZone) {
+  this.container = container;
+  this.deadZone = deadZone || 6;
+  this.activePointerId = null;
+  this.baseX = 0; this.baseY = 0; this.radius = 60;
+  this.knobX = 0; this.knobY = 0;
+  this.output = { x:0, y:0, magnitude:0, active:false };
+
+  this.canvas = document.createElement("canvas");
+  this.canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;";
+  container.appendChild(this.canvas);
+  this.ctx = this.canvas.getContext("2d");
+  container.style.touchAction = "none";
+
+  const self = this;
+  container.addEventListener("pointerdown", function(e){ self._down(e); }, {passive:false});
+  container.addEventListener("pointermove", function(e){ self._move(e); }, {passive:false});
+  container.addEventListener("pointerup",   function(e){ self._up(e); });
+  container.addEventListener("pointercancel", function(e){ self._up(e); });
+
+  this._resize();
+  window.addEventListener("resize", function(){ self._resize(); });
+}
+VirtualJoystick.prototype._resize = function() {
+  const r = this.container.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  this.canvas.width  = r.width * dpr;
+  this.canvas.height = r.height * dpr;
+  this.baseX = r.width / 2;
+  this.baseY = r.height / 2;
+  this.radius = Math.min(r.width, r.height) * 0.34;
+};
+VirtualJoystick.prototype._down = function(e) {
+  if (this.activePointerId !== null) return;
+  const r = this.container.getBoundingClientRect();
+  this.activePointerId = e.pointerId;
+  try { this.container.setPointerCapture(e.pointerId); } catch(_) {}
+  this._update(e.clientX - r.left, e.clientY - r.top);
+  e.preventDefault();
+};
+VirtualJoystick.prototype._move = function(e) {
+  if (e.pointerId !== this.activePointerId) return;
+  const r = this.container.getBoundingClientRect();
+  this._update(e.clientX - r.left, e.clientY - r.top);
+  e.preventDefault();
+};
+VirtualJoystick.prototype._up = function(e) {
+  if (e.pointerId !== this.activePointerId) return;
+  this.activePointerId = null;
+  this.knobX = this.knobY = 0;
+  this.output = { x:0, y:0, magnitude:0, active:false };
+};
+VirtualJoystick.prototype._update = function(px, py) {
+  let dx = px - this.baseX, dy = py - this.baseY;
+  const dist = Math.hypot(dx, dy) || 1;
+  const clamped = Math.min(dist, this.radius);
+  dx = (dx/dist)*clamped; dy = (dy/dist)*clamped;
+  this.knobX = dx; this.knobY = dy;
+  const mag = dist < this.deadZone ? 0 : Math.min(1, (dist-this.deadZone)/(this.radius-this.deadZone));
+  const nx = dist > 0 ? dx/clamped : 0;
+  const ny = dist > 0 ? dy/clamped : 0;
+  this.output = { x:nx, y:ny, magnitude:mag, active:true };
+};
+VirtualJoystick.prototype.render = function() {
+  const dpr = window.devicePixelRatio || 1;
+  const ctx = this.ctx;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+  const bg = ctx.createRadialGradient(this.baseX,this.baseY,0, this.baseX,this.baseY,this.radius);
+  bg.addColorStop(0, "rgba(80,150,255,0.15)");
+  bg.addColorStop(1, "rgba(80,150,255,0.02)");
+  ctx.beginPath(); ctx.arc(this.baseX,this.baseY,this.radius,0,Math.PI*2);
+  ctx.fillStyle = bg; ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(120,180,255,0.4)";
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(this.baseX,this.baseY,this.radius*0.65,0,Math.PI*2);
+  ctx.strokeStyle = "rgba(120,180,255,0.15)"; ctx.stroke();
+  const kx = this.baseX + this.knobX, ky = this.baseY + this.knobY;
+  const kg = ctx.createRadialGradient(kx-4,ky-4,0, kx,ky,this.radius*0.42);
+  kg.addColorStop(0, this.activePointerId!==null ? "rgba(180,220,255,0.9)" : "rgba(140,190,255,0.6)");
+  kg.addColorStop(1, this.activePointerId!==null ? "rgba(80,140,220,0.5)" : "rgba(60,110,180,0.35)");
+  ctx.beginPath(); ctx.arc(kx,ky,this.radius*0.38,0,Math.PI*2);
+  ctx.fillStyle = kg; ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = this.activePointerId!==null ? "rgba(220,240,255,0.95)" : "rgba(180,220,255,0.7)";
+  ctx.stroke();
+};
+
+/* ---------- DISPLAY ---------- */
+function DisplayManager(canvas) {
+  this.canvas = canvas;
+  this.engine = new BABYLON.Engine(canvas, true, {
+    preserveDrawingBuffer:false, stencil:true,
+    disableWebGL2Support:false, powerPreference:"high-performance",
+    antialias:true, adaptToDeviceRatio:true,
+  }, false);
+  const self = this;
+  window.addEventListener("resize", function(){ self.engine.resize(); });
+  window.addEventListener("orientationchange", function(){ setTimeout(function(){ self.engine.resize(); }, 250); });
+}
+DisplayManager.prototype.requestFullscreen = function() {
+  const el = this.canvas;
+  const fn = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (fn) { try { fn.call(el); } catch(_) {} }
+};
+
+/* ---------- MODELS (hierarchy based, no merge) ---------- */
+function createHeroModel(scene) {
+  const root = new BABYLON.TransformNode("heroRoot", scene);
+
+  const armorMat = new BABYLON.PBRMaterial("armorMat", scene);
+  armorMat.albedoColor = new BABYLON.Color3(0.18, 0.32, 0.62);
+  armorMat.metallic = 0.85; armorMat.roughness = 0.35;
+  armorMat.emissiveColor = new BABYLON.Color3(0.05, 0.15, 0.35);
+
+  const skinMat = new BABYLON.PBRMaterial("skinMat", scene);
+  skinMat.albedoColor = new BABYLON.Color3(0.85, 0.65, 0.52);
+  skinMat.metallic = 0; skinMat.roughness = 0.6;
+
+  const capeMat = new BABYLON.PBRMaterial("capeMat", scene);
+  capeMat.albedoColor = new BABYLON.Color3(0.28, 0.08, 0.35);
+  capeMat.metallic = 0.1; capeMat.roughness = 0.7;
+
+  const bladeMat = new BABYLON.PBRMaterial("bladeMat", scene);
+  bladeMat.albedoColor = new BABYLON.Color3(0.85, 0.9, 0.95);
+  bladeMat.metallic = 1.0; bladeMat.roughness = 0.15;
+  bladeMat.emissiveColor = new BABYLON.Color3(0.15, 0.35, 0.6);
+
+  const goldMat = new BABYLON.PBRMaterial("goldMat", scene);
+  goldMat.albedoColor = new BABYLON.Color3(0.85, 0.65, 0.2);
+  goldMat.metallic = 1.0; goldMat.roughness = 0.25;
+
+  function add(mesh, mat) {
+    mesh.material = mat;
+    mesh.parent = root;
+    mesh.isPickable = false;
+    return mesh;
+  }
+
+  // Torso
+  add(BABYLON.MeshBuilder.CreateBox("torso", { width:0.75, height:0.95, depth:0.42 }, scene), armorMat).position.y = 1.15;
+
+  // Pundak
+  const shL = add(BABYLON.MeshBuilder.CreateSphere("shL", { diameter:0.42, segments:12 }, scene), armorMat);
+  shL.position.set(-0.5, 1.5, 0);
+  const shR = add(BABYLON.MeshBuilder.CreateSphere("shR", { diameter:0.42, segments:12 }, scene), armorMat);
+  shR.position.set(0.5, 1.5, 0);
+
+  // Lengan
+  const armL = add(BABYLON.MeshBuilder.CreateCylinder("armL", { height:0.75, diameter:0.18, tessellation:10 }, scene), skinMat);
+  armL.position.set(-0.5, 1.05, 0.05); armL.rotation.x = 0.1;
+  const armR = add(BABYLON.MeshBuilder.CreateCylinder("armR", { height:0.75, diameter:0.18, tessellation:10 }, scene), skinMat);
+  armR.position.set(0.5, 1.05, 0.05); armR.rotation.x = 0.1;
+
+  // Kepala
+  add(BABYLON.MeshBuilder.CreateSphere("head", { diameter:0.42, segments:14 }, scene), skinMat).position.y = 1.88;
+
+  // Helm
+  add(BABYLON.MeshBuilder.CreateSphere("helm", { diameter:0.5, segments:14, slice:0.55 }, scene), armorMat).position.y = 1.9;
+
+  // Mahkota
+  add(BABYLON.MeshBuilder.CreateTorus("crown", { diameter:0.42, thickness:0.05, tessellation:16 }, scene), goldMat).position.y = 2.02;
+
+  // Leher
+  add(BABYLON.MeshBuilder.CreateCylinder("neck", { height:0.15, diameter:0.16, tessellation:8 }, scene), skinMat).position.y = 1.63;
+
+  // Kaki
+  const legL = add(BABYLON.MeshBuilder.CreateCylinder("legL", { height:0.75, diameter:0.22, tessellation:10 }, scene), armorMat);
+  legL.position.set(-0.18, 0.42, 0);
+  const legR = add(BABYLON.MeshBuilder.CreateCylinder("legR", { height:0.75, diameter:0.22, tessellation:10 }, scene), armorMat);
+  legR.position.set(0.18, 0.42, 0);
+
+  // Sepatu
+  const bootL = add(BABYLON.MeshBuilder.CreateBox("bootL", { width:0.24, height:0.18, depth:0.32 }, scene), goldMat);
+  bootL.position.set(-0.18, 0.08, 0.05);
+  const bootR = add(BABYLON.MeshBuilder.CreateBox("bootR", { width:0.24, height:0.18, depth:0.32 }, scene), goldMat);
+  bootR.position.set(0.18, 0.08, 0.05);
+
+  // Pedang
+  const blade = add(BABYLON.MeshBuilder.CreateBox("blade", { width:0.08, height:1.35, depth:0.03 }, scene), bladeMat);
+  blade.position.set(0.62, 1.35, 0); blade.rotation.z = -0.22;
+  const hilt = add(BABYLON.MeshBuilder.CreateCylinder("hilt", { height:0.22, diameter:0.07, tessellation:8 }, scene), goldMat);
+  hilt.position.set(0.62, 0.75, 0); hilt.rotation.z = -0.22;
+  const guard = add(BABYLON.MeshBuilder.CreateBox("guard", { width:0.32, height:0.06, depth:0.08 }, scene), goldMat);
+  guard.position.set(0.62, 0.88, 0); guard.rotation.z = -0.22;
+
+  // Cape
+  const cape = add(BABYLON.MeshBuilder.CreatePlane("cape", { width:0.9, height:1.3, sideOrientation:BABYLON.Mesh.DOUBLESIDE }, scene), capeMat);
+  cape.position.set(0, 1.15, -0.28);
+
+  // Aura ring (emissive)
+  const auraMat = new BABYLON.StandardMaterial("auraMat", scene);
+  auraMat.diffuseColor = new BABYLON.Color3(0,0,0);
+  auraMat.emissiveColor = new BABYLON.Color3(0.2, 0.6, 1.0);
+  auraMat.alpha = 0.7;
+  auraMat.disableLighting = true;
+  add(BABYLON.MeshBuilder.CreateTorus("aura", { diameter:2.4, thickness:0.12, tessellation:32 }, scene), auraMat).position.y = 0.05;
+
+  // Selection ring
+  const selMat = new BABYLON.StandardMaterial("selMat", scene);
+  selMat.diffuseColor = new BABYLON.Color3(0,0,0);
+  selMat.emissiveColor = new BABYLON.Color3(0.3, 0.9, 1.0);
+  selMat.alpha = 0.9;
+  selMat.disableLighting = true;
+  add(BABYLON.MeshBuilder.CreateTorus("selRing", { diameter:2.0, thickness:0.06, tessellation:32 }, scene), selMat).position.y = 0.03;
+
+  return root;
+}
+
+function createMinionModelTemplate(scene, teamColor) {
+  const root = new BABYLON.TransformNode("minionRoot", scene);
+
+  const bodyMat = new BABYLON.PBRMaterial("minionBody_" + Math.random(), scene);
+  bodyMat.albedoColor = teamColor;
+  bodyMat.metallic = 0.4; bodyMat.roughness = 0.5;
+  bodyMat.emissiveColor = teamColor.scale(0.15);
+
+  const trimMat = new BABYLON.PBRMaterial("minionTrim_" + Math.random(), scene);
+  trimMat.albedoColor = new BABYLON.Color3(0.15, 0.15, 0.18);
+  trimMat.metallic = 0.7; trimMat.roughness = 0.4;
+
+  const weaponMat = new BABYLON.PBRMaterial("minionWeapon_" + Math.random(), scene);
+  weaponMat.albedoColor = new BABYLON.Color3(0.7, 0.75, 0.8);
+  weaponMat.metallic = 1.0; weaponMat.roughness = 0.2;
+
+  function add(mesh, mat) {
+    mesh.material = mat;
+    mesh.parent = root;
+    mesh.isPickable = false;
+    return mesh;
+  }
+
+  add(BABYLON.MeshBuilder.CreateBox("mb", { width:0.5, height:0.55, depth:0.35 }, scene), bodyMat).position.y = 0.6;
+  add(BABYLON.MeshBuilder.CreateBox("mh", { width:0.32, height:0.32, depth:0.32 }, scene), trimMat).position.y = 1.0;
+
+  const aL = add(BABYLON.MeshBuilder.CreateCylinder("maL", { height:0.35, diameter:0.1, tessellation:6 }, scene), bodyMat);
+  aL.position.set(-0.32, 0.65, 0);
+  const aR = add(BABYLON.MeshBuilder.CreateCylinder("maR", { height:0.35, diameter:0.1, tessellation:6 }, scene), bodyMat);
+  aR.position.set(0.32, 0.65, 0);
+
+  const lL = add(BABYLON.MeshBuilder.CreateCylinder("mlL", { height:0.35, diameter:0.12, tessellation:6 }, scene), trimMat);
+  lL.position.set(-0.13, 0.18, 0);
+  const lR = add(BABYLON.MeshBuilder.CreateCylinder("mlR", { height:0.35, diameter:0.12, tessellation:6 }, scene), trimMat);
+  lR.position.set(0.13, 0.18, 0);
+
+  const staff = add(BABYLON.MeshBuilder.CreateCylinder("ms", { height:0.7, diameter:0.06, tessellation:6 }, scene), weaponMat);
+  staff.position.set(0.42, 0.75, 0.05); staff.rotation.z = -0.4;
+
+  return root;
+}
+
+function createTowerModelTemplate(scene, teamColor) {
+  const root = new BABYLON.TransformNode("towerRoot", scene);
+
+  const stoneMat = new BABYLON.PBRMaterial("stoneMat_" + Math.random(), scene);
+  stoneMat.albedoColor = new BABYLON.Color3(0.42, 0.4, 0.38);
+  stoneMat.metallic = 0.15; stoneMat.roughness = 0.85;
+
+  const teamMat = new BABYLON.PBRMaterial("teamMat_" + Math.random(), scene);
+  teamMat.albedoColor = teamColor;
+  teamMat.metallic = 0.7; teamMat.roughness = 0.3;
+  teamMat.emissiveColor = teamColor.scale(0.35);
+
+  const crystalMat = new BABYLON.PBRMaterial("crystalMat_" + Math.random(), scene);
+  crystalMat.albedoColor = teamColor.scale(1.5);
+  crystalMat.metallic = 0.3; crystalMat.roughness = 0.05;
+  crystalMat.emissiveColor = teamColor;
+  crystalMat.alpha = 0.85;
+
+  function add(mesh, mat) {
+    mesh.material = mat;
+    mesh.parent = root;
+    mesh.isPickable = false;
+    return mesh;
+  }
+
+  add(BABYLON.MeshBuilder.CreateCylinder("tb", { height:0.8, diameterTop:5, diameterBottom:5.8, tessellation:12 }, scene), stoneMat).position.y = 0.4;
+  add(BABYLON.MeshBuilder.CreateCylinder("tbd", { height:6, diameterTop:2.6, diameterBottom:3.6, tessellation:12 }, scene), stoneMat).position.y = 3.8;
+  add(BABYLON.MeshBuilder.CreateTorus("tr1", { diameter:3.0, thickness:0.15, tessellation:16 }, scene), teamMat).position.y = 1.5;
+  add(BABYLON.MeshBuilder.CreateTorus("tr2", { diameter:3.0, thickness:0.15, tessellation:16 }, scene), teamMat).position.y = 6.5;
+  add(BABYLON.MeshBuilder.CreateCylinder("tt", { height:0.5, diameterTop:3.2, diameterBottom:3.0, tessellation:12 }, scene), stoneMat).position.y = 7.0;
+
+  for (let i=0;i<4;i++) {
+    const a = (i/4) * Math.PI * 2;
+    const p = add(BABYLON.MeshBuilder.CreateCylinder("tp"+i, { height:1.6, diameter:0.35, tessellation:6 }, scene), stoneMat);
+    p.position.set(Math.cos(a)*1.1, 8.0, Math.sin(a)*1.1);
+  }
+
+  const crystal = add(BABYLON.MeshBuilder.CreatePolyhedron("tc", { type:1, size:0.7 }, scene), crystalMat);
+  crystal.position.y = 8.8;
+  crystal.scaling.y = 1.6;
+
+  return root;
+}
+
+function createBaseModel(scene, teamColor) {
+  const root = new BABYLON.TransformNode("baseRoot", scene);
+
+  const stoneMat = new BABYLON.PBRMaterial("bStone_"+Math.random(), scene);
+  stoneMat.albedoColor = new BABYLON.Color3(0.3, 0.3, 0.35);
+  stoneMat.metallic = 0.3; stoneMat.roughness = 0.7;
+
+  const glowMat = new BABYLON.PBRMaterial("bGlow_"+Math.random(), scene);
+  glowMat.albedoColor = teamColor;
+  glowMat.metallic = 0.5; glowMat.roughness = 0.1;
+  glowMat.emissiveColor = teamColor.scale(1.2);
+
+  function add(mesh, mat) {
+    mesh.material = mat;
+    mesh.parent = root;
+    mesh.isPickable = false;
+    return mesh;
+  }
+
+  add(BABYLON.MeshBuilder.CreateCylinder("bp", { height:1.5, diameter:18, tessellation:20 }, scene), stoneMat).position.y = 0.75;
+  add(BABYLON.MeshBuilder.CreateTorus("br", { diameter:16, thickness:0.4, tessellation:24 }, scene), glowMat).position.y = 1.6;
+  add(BABYLON.MeshBuilder.CreateCylinder("bc", { height:7, diameterTop:3, diameterBottom:5, tessellation:16 }, scene), stoneMat).position.y = 5.0;
+
+  const crystal = add(BABYLON.MeshBuilder.CreatePolyhedron("bcx", { type:1, size:1.8 }, scene), glowMat);
+  crystal.position.y = 10.0;
+  crystal.scaling.y = 2.2;
+
+  return root;
+}
+
+function createTreeTemplate(scene) {
+  const root = new BABYLON.TransformNode("treeRoot", scene);
+
+  const trunkMat = new BABYLON.PBRMaterial("trunkMat", scene);
+  trunkMat.albedoColor = new BABYLON.Color3(0.22, 0.14, 0.08);
+  trunkMat.metallic = 0; trunkMat.roughness = 0.9;
+
+  const leafMat = new BABYLON.PBRMaterial("leafMat", scene);
+  leafMat.albedoColor = new BABYLON.Color3(0.08, 0.22, 0.1);
+  leafMat.metallic = 0; leafMat.roughness = 0.85;
+
+  function add(mesh, mat) {
+    mesh.material = mat;
+    mesh.parent = root;
+    mesh.isPickable = false;
+    return mesh;
+  }
+
+  add(BABYLON.MeshBuilder.CreateCylinder("trunk", { height:3.2, diameterTop:0.28, diameterBottom:0.5, tessellation:8 }, scene), trunkMat).position.y = 1.6;
+  add(BABYLON.MeshBuilder.CreatePolyhedron("lf1", { type:3, size:1.6 }, scene), leafMat).position.y = 3.6;
+  add(BABYLON.MeshBuilder.CreatePolyhedron("lf2", { type:3, size:1.2 }, scene), leafMat).position.y = 4.6;
+  add(BABYLON.MeshBuilder.CreatePolyhedron("lf3", { type:3, size:0.85 }, scene), leafMat).position.y = 5.4;
+
+  return root;
+}
+
+function createRockTemplate(scene) {
+  const root = new BABYLON.TransformNode("rockRoot", scene);
+  const mat = new BABYLON.PBRMaterial("rockMat", scene);
+  mat.albedoColor = new BABYLON.Color3(0.32, 0.3, 0.28);
+  mat.metallic = 0.2; mat.roughness = 0.85;
+
+  const rock = BABYLON.MeshBuilder.CreatePolyhedron("rock", { type:2, size:1.2 }, scene);
+  rock.material = mat;
+  rock.parent = root;
+  rock.isPickable = false;
+  rock.scaling = new BABYLON.Vector3(1.4, 1.0, 1.2);
+
+  return root;
+}
+
+/* ---------- MINION CLASS ---------- */
+function Minion(scene, team, template) {
+  this.scene = scene;
+  this.team = team;
+
+  // Clone template (deep clone keeps hierarchy)
+  this.mesh = template.clone("minion_" + Math.random());
+  this.mesh.setEnabled(false);
+  this.mesh.getChildMeshes().forEach(function(m){ m.isPickable = false; });
+
+  // Health bar (billboarded plane)
+  this.hpBG = BABYLON.MeshBuilder.CreatePlane("hpBG_" + Math.random(), { width:1.0, height:0.13 }, scene);
+  this.hpBG.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+  this.hpBG.parent = this.mesh;
+  this.hpBG.position.y = 1.5;
+  this.hpBG.isPickable = false;
+  const bgMat = new BABYLON.StandardMaterial("hpBGMat_" + Math.random(), scene);
+  bgMat.diffuseColor = new BABYLON.Color3(0,0,0);
+  bgMat.emissiveColor = new BABYLON.Color3(0,0,0);
+  bgMat.disableLighting = true;
+  bgMat.alpha = 0.85;
+  this.hpBG.material = bgMat;
+
+  this.hpFill = BABYLON.MeshBuilder.CreatePlane("hpFill_" + Math.random(), { width:1.0, height:0.1 }, scene);
+  this.hpFill.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL;
+  this.hpFill.parent = this.mesh;
+  this.hpFill.position.y = 1.5;
+  this.hpFill.position.z = 0.001;
+  this.hpFill.isPickable = false;
+  const fillMat = new BABYLON.StandardMaterial("hpFillMat_" + Math.random(), scene);
+  fillMat.diffuseColor = new BABYLON.Color3(0,0,0);
+  fillMat.emissiveColor = team === 0
+    ? new BABYLON.Color3(0.3, 0.6, 1)
+    : new BABYLON.Color3(1, 0.35, 0.35);
+  fillMat.disableLighting = true;
+  this.hpFill.material = fillMat;
+
+  this.hpBG.setEnabled(false);
+  this.hpFill.setEnabled(false);
+
+  this.waypoints = [];
+  this.idx = 0;
+  this.speed = CFG.MINION_SPEED;
+  this.hp = 200; this.maxHp = 200;
+  this.alive = false;
+  this.bob = Math.random() * Math.PI * 2;
+}
+
+Minion.prototype.spawn = function(waypoints, startX, startZ) {
+  this.waypoints = waypoints;
+  this.idx = 0;
+  this.alive = true;
+  this.hp = this.maxHp = 200;
+  this.mesh.setEnabled(true);
+  this.hpBG.setEnabled(true);
+  this.hpFill.setEnabled(true);
+  this.mesh.position.set(startX, 0, startZ);
+  this._updateHPBar();
+};
+
+Minion.prototype._updateHPBar = function() {
+  const pct = Math.max(0, this.hp / this.maxHp);
+  this.hpFill.scaling.x = pct;
+  this.hpFill.position.x = -(1 - pct) * 0.5;
+};
+
+Minion.prototype.update = function(dt) {
+  if (!this.alive) return;
+  const target = this.waypoints[this.idx];
+  if (!target) { this.die(); return; }
+  const dx = target.x - this.mesh.position.x;
+  const dz = target.z - this.mesh.position.z;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 0.7) { this.idx++; return; }
+  const nx = dx/dist, nz = dz/dist;
+  this.mesh.position.x += nx * this.speed * dt;
+  this.mesh.position.z += nz * this.speed * dt;
+  this.mesh.rotation.y = Math.atan2(nx, nz);
+  this.bob += dt * 9;
+  this.mesh.position.y = Math.abs(Math.sin(this.bob)) * 0.08;
+};
+
+Minion.prototype.damage = function(d) {
+  this.hp -= d;
+  this._updateHPBar();
+  if (this.hp <= 0) this.die();
+};
+
+Minion.prototype.die = function() {
+  this.alive = false;
+  this.mesh.setEnabled(false);
+  this.hpBG.setEnabled(false);
+  this.hpFill.setEnabled(false);
+};
+
+/* ---------- TOWER CLASS ---------- */
+function Tower(scene, team, x, z, template) {
+  this.scene = scene;
+  this.team = team;
+  this.pos = { x: x, z: z };
+  this.hp = 1800; this.maxHp = 1800;
+  this.range = CFG.TOWER_RANGE;
+  this.cooldown = 0;
+  this.damage = 120;
+
+  this.mesh = template.clone("tower_" + Math.random());
+  this.mesh.position.set(x, 0, z);
+  this.mesh.getChildMeshes().forEach(function(m){ m.isPickable = false; });
+
+  this.light = new BABYLON.PointLight("tLight_" + Math.random(), new BABYLON.Vector3(x, 9, z), scene);
+  this.light.diffuse = team === 0
+    ? new BABYLON.Color3(0.3, 0.6, 1) : new BABYLON.Color3(1, 0.4, 0.4);
+  this.light.intensity = 0.5;
+  this.light.range = 10;
+}
+
+Tower.prototype.update = function(dt, enemies, onHit) {
+  if (this.hp <= 0) return;
+  this.cooldown -= dt;
+  this.light.intensity = 0.4 + Math.sin(performance.now() * 0.003) * 0.15;
+  if (this.cooldown > 0) return;
+
+  let best = null, bestD = this.range;
+  for (let i=0;i<enemies.length;i++) {
+    const e = enemies[i];
+    if (!e.alive) continue;
+    const d = Math.hypot(e.mesh.position.x - this.pos.x, e.mesh.position.z - this.pos.z);
+    if (d < bestD) { best = e; bestD = d; }
+  }
+  if (best) {
+    this.cooldown = 1.3;
+    onHit(best, this.damage, this.pos);
+  }
+};
+
+/* ---------- HERO MOVEMENT ---------- */
+function HeroMovement(mesh, speed) {
+  this.mesh = mesh;
+  this.speed = speed;
+  this.predicted = new BABYLON.Vector3(0, 0, 0);
+  this.pendingInputs = [];
+  this.tick = 0;
+  this.renderOffset = new BABYLON.Vector3(0,0,0);
+  this.walkPhase = 0;
+}
+HeroMovement.prototype.fixedUpdate = function(dt, joy) {
+  this.tick++;
+  if (!joy.active || joy.magnitude < 0.05) return null;
+  const input = { dx:joy.x, dz:joy.y, mag:joy.magnitude, tick:this.tick };
+  this.pendingInputs.push(input);
+  this._applyLocal(input, dt);
+  return input;
+};
+HeroMovement.prototype._applyLocal = function(input, dt) {
+  const mx = input.dx * input.mag * this.speed * dt;
+  const mz = input.dz * input.mag * this.speed * dt;
+  this.predicted.x += mx;
+  this.predicted.z += mz;
+  const lim = CFG.MAP_SIZE/2 - 6;
+  this.predicted.x = Math.max(-lim, Math.min(lim, this.predicted.x));
+  this.predicted.z = Math.max(-lim, Math.min(lim, this.predicted.z));
+  if (input.mag > 0.1) {
+    const targetRot = Math.atan2(input.dx, input.dz);
+    let diff = targetRot - this.mesh.rotation.y;
+    while (diff > Math.PI) diff -= Math.PI*2;
+    while (diff < -Math.PI) diff += Math.PI*2;
+    this.mesh.rotation.y += diff * Math.min(1, dt * 14);
+    this.walkPhase += dt * 14;
+  } else {
+    this.walkPhase += dt * 3;
+  }
+};
+HeroMovement.prototype.reconcile = function(serverPos, serverTick) {
+  this.pendingInputs = this.pendingInputs.filter(function(p){ return p.tick > serverTick; });
+  let p = new BABYLON.Vector3(serverPos.x, 0, serverPos.z);
+  for (let i=0;i<this.pendingInputs.length;i++) {
+    const inp = this.pendingInputs[i];
+    p.x += inp.dx * inp.mag * this.speed * CFG.TICK;
+    p.z += inp.dz * inp.mag * this.speed * CFG.TICK;
+  }
+  const corr = p.subtract(this.predicted);
+  if (corr.length() > 0.01) this.renderOffset = corr.scale(0.15);
+  this.predicted = p;
+};
+HeroMovement.prototype.renderUpdate = function() {
+  const rx = this.predicted.x + this.renderOffset.x;
+  const rz = this.predicted.z + this.renderOffset.z;
+  this.mesh.position.x += (rx - this.mesh.position.x) * 0.4;
+  this.mesh.position.z += (rz - this.mesh.position.z) * 0.4;
+  this.mesh.position.y = Math.abs(Math.sin(this.walkPhase)) * 0.06;
+  this.renderOffset.scaleInPlace(0.8);
+};
+
+/* ---------- EFFECTS ---------- */
+function Effects(scene) {
+  this.scene = scene;
+  this.fx = [];
+}
+Effects.prototype.spawnImpact = function(pos, color, size, life) {
+  size = size || 1.5; life = life || 0.35;
+  const s = BABYLON.MeshBuilder.CreateSphere("fx", { diameter:size, segments:8 }, this.scene);
+  s.position.copyFrom(pos);
+  const m = new BABYLON.StandardMaterial("fxm_" + Math.random(), this.scene);
+  m.emissiveColor = color;
+  m.diffuseColor = new BABYLON.Color3(0,0,0);
+  m.alpha = 0.95;
+  m.disableLighting = true;
+  s.material = m;
+  s.isPickable = false;
+  this.fx.push({ mesh:s, mat:m, life:life, maxLife:life });
+};
+Effects.prototype.spawnParticleBurst = function(pos, color) {
+  const p = new BABYLON.ParticleSystem("burst_" + Math.random(), 40, this.scene);
+  p.emitter = pos.clone();
+  p.minEmitBox = new BABYLON.Vector3(-0.2,0,-0.2);
+  p.maxEmitBox = new BABYLON.Vector3(0.2,0.2,0.2);
+  p.color1 = new BABYLON.Color4(color.r, color.g, color.b, 1);
+  p.color2 = new BABYLON.Color4(color.r*0.5, color.g*0.5, color.b*0.5, 1);
+  p.colorDead = new BABYLON.Color4(color.r, color.g, color.b, 0);
+  p.minSize = 0.15; p.maxSize = 0.4;
+  p.minLifeTime = 0.3; p.maxLifeTime = 0.6;
+  p.emitRate = 200;
+  p.blendMode = BABYLON.ParticleSystem.BLENDMODE_ONEONE;
+  p.gravity = new BABYLON.Vector3(0, -4, 0);
+  p.direction1 = new BABYLON.Vector3(-2, 2, -2);
+  p.direction2 = new BABYLON.Vector3(2, 4, 2);
+  p.minEmitPower = 2; p.maxEmitPower = 4;
+  p.updateSpeed = 0.02;
+  p.targetStopDuration = 0.1;
+  p.disposeOnStop = true;
+  p.start();
+  setTimeout(function(){ p.dispose(); }, 900);
+};
+Effects.prototype.update = function(dt) {
+  for (let i = this.fx.length - 1; i >= 0; i--) {
+    const f = this.fx[i];
+    f.life -= dt;
+    const t = f.life / f.maxLife;
+    f.mesh.scaling.scaleInPlace(1 + dt * 4);
+    f.mat.alpha = Math.max(0, t);
+    if (f.life <= 0) {
+      f.mesh.dispose(); f.mat.dispose();
+      this.fx.splice(i, 1);
+    }
+  }
+};
+
+/* ---------- GAME ---------- */
+function Game(engine, canvas) {
+  this.engine = engine;
+  this.canvas = canvas;
+  this.scene = new BABYLON.Scene(engine);
+  this.scene.clearColor = new BABYLON.Color4(0.03, 0.05, 0.1, 1);
+  this.scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+  this.scene.fogColor = new BABYLON.Color3(0.16, 0.22, 0.35);
+  this.scene.fogDensity = 0.0055;
+  this.scene.ambientColor = new BABYLON.Color3(0.15, 0.2, 0.3);
+
+  this.acc = 0;
+  this.elapsed = 0;
+  this.gold = 0;
+  this.lvl = 1;
+  this.waveTimer = 0;
+  this.waveCount = 0;
+  this.effects = new Effects(this.scene);
+
+  this._setupCamera();
+  this._setupLights();
+  this._setupSky();
+  this._setupGround();
+  this._setupEnvironment();
+  this._setupBasesAndTowers();
+  this._setupHero();
+  this._setupMinionPools();
+
+  this.joyMove = new VirtualJoystick(document.getElementById("joystickLeft"));
+  this.joyAim  = new VirtualJoystick(document.getElementById("joystickRight"));
+
+  this.skills = [
+    { cd: 0, max: 6 },
+    { cd: 0, max: 9 },
+    { cd: 0, max: 22 }
+  ];
+
+  this.lanePaths = this._buildLanePaths();
+}
+
+Game.prototype._setupCamera = function() {
+  const camera = new BABYLON.UniversalCamera("cam", new BABYLON.Vector3(-52, 22, -70), this.scene);
+  camera.setTarget(new BABYLON.Vector3(-52, 1.8, -49));
+  camera.fov = 0.85;
+  camera.minZ = 0.5;
+  camera.maxZ = 600;
+  camera.inputs.clear();
+  this.scene.activeCamera = camera;
+  this.camera = camera;
+};
+
+Game.prototype._setupLights = function() {
+  const hemi = new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0, 1, 0), this.scene);
+  hemi.intensity = 0.55;
+  hemi.diffuse = new BABYLON.Color3(0.7, 0.8, 1.0);
+  hemi.groundColor = new BABYLON.Color3(0.1, 0.15, 0.2);
+
+  const sun = new BABYLON.DirectionalLight("sun", new BABYLON.Vector3(-0.5, -1, -0.35), this.scene);
+  sun.position = new BABYLON.Vector3(60, 90, -40);
+  sun.intensity = 1.1;
+  sun.diffuse = new BABYLON.Color3(1.0, 0.94, 0.82);
+  sun.specular = new BABYLON.Color3(1, 1, 1);
+
+  const shadow = new BABYLON.ShadowGenerator(CFG.SHADOW_RES, sun);
+  shadow.useBlurExponentialShadowMap = true;
+  shadow.blurKernel = 24;
+  shadow.darkness = 0.35;
+  this.shadow = shadow;
+};
+
+Game.prototype._setupSky = function() {
+  const skybox = BABYLON.MeshBuilder.CreateBox("sky", { size: 800 }, this.scene);
+  const skyMat = new BABYLON.StandardMaterial("skyMat", this.scene);
+  skyMat.backFaceCulling = false;
+  skyMat.disableLighting = true;
+  skyMat.emissiveTexture = makeSkyTexture(this.scene);
+  skyMat.diffuseColor = new BABYLON.Color3(0,0,0);
+  skybox.material = skyMat;
+  skybox.infiniteDistance = true;
+  skybox.applyFog = false;
+  skybox.isPickable = false;
+};
+
+Game.prototype._setupGround = function() {
+  const ground = BABYLON.MeshBuilder.CreateGround("ground", {
+    width: CFG.MAP_SIZE * 1.6, height: CFG.MAP_SIZE * 1.6, subdivisions: 8
+  }, this.scene);
+  const gmat = new BABYLON.PBRMaterial("groundMat", this.scene);
+  gmat.albedoTexture = makeGrassTexture(this.scene);
+  gmat.metallic = 0;
+  gmat.roughness = 0.95;
+  gmat.specularIntensity = 0.05;
+  ground.material = gmat;
+  ground.receiveShadows = true;
+  ground.freezeWorldMatrix();
+  ground.isPickable = false;
+
+  const L = CFG.MAP_SIZE/2;
+  const roadMat = new BABYLON.PBRMaterial("roadMat", this.scene);
+  roadMat.albedoTexture = makeRoadTexture(this.scene);
+  roadMat.albedoTexture.uScale = 12;
+  roadMat.albedoTexture.vScale = 1;
+  roadMat.metallic = 0;
+  roadMat.roughness = 0.9;
+
+  const topRoad = BABYLON.MeshBuilder.CreateGround("topRoad", { width: L*2, height: 6 }, this.scene);
+  topRoad.position.set(0, 0.02, -42);
+  topRoad.material = roadMat;
+  topRoad.receiveShadows = true;
+  topRoad.freezeWorldMatrix();
+  topRoad.isPickable = false;
+
+  const botRoad = BABYLON.MeshBuilder.CreateGround("botRoad", { width: L*2, height: 6 }, this.scene);
+  botRoad.position.set(0, 0.02, 42);
+  botRoad.material = roadMat;
+  botRoad.receiveShadows = true;
+  botRoad.freezeWorldMatrix();
+  botRoad.isPickable = false;
+
+  const midRoad = BABYLON.MeshBuilder.CreateGround("midRoad", { width: L*2.4, height: 6 }, this.scene);
+  midRoad.position.set(0, 0.02, 0);
+  midRoad.rotation.y = Math.PI * 0.25;
+  midRoad.material = roadMat;
+  midRoad.receiveShadows = true;
+  midRoad.freezeWorldMatrix();
+  midRoad.isPickable = false;
+};
+
+Game.prototype._setupEnvironment = function() {
+  const self = this;
+  const treeTemplate = createTreeTemplate(this.scene);
+  const rockTemplate = createRockTemplate(this.scene);
+
+  const R = CFG.MAP_SIZE/2 + 4;
+  const treePositions = [];
+  for (let i = 0; i < 60; i++) {
+    const x = (Math.random() - 0.5) * R * 2.4;
+    const z = (Math.random() - 0.5) * R * 2.4;
+    const onTop = Math.abs(z + 42) < 5;
+    const onBot = Math.abs(z - 42) < 5;
+    const onMid = Math.abs(Math.abs(x) - Math.abs(z)) < 5;
+    const onBase = Math.hypot(x, z) > 70;
+    if (onTop || onBot || onMid || onBase) continue;
+    treePositions.push({ x: x, z: z });
+  }
+  treePositions.forEach(function(p, i) {
+    const inst = treeTemplate.clone("tree" + i);
+    inst.position.set(p.x, 0, p.z);
+    const s = 0.8 + Math.random()*0.6;
+    inst.scaling = new BABYLON.Vector3(s, s, s);
+    inst.rotation.y = Math.random() * Math.PI * 2;
+  });
+
+  for (let i = 0; i < 25; i++) {
+    const x = (Math.random() - 0.5) * R * 2.2;
+    const z = (Math.random() - 0.5) * R * 2.2;
+    if (Math.abs(z + 42) < 5 || Math.abs(z - 42) < 5 || Math.abs(Math.abs(x) - Math.abs(z)) < 5) continue;
+    const inst = rockTemplate.clone("rock" + i);
+    inst.position.set(x, 0, z);
+    inst.scaling = new BABYLON.Vector3(0.5 + Math.random()*1.0, 0.4 + Math.random()*0.6, 0.5 + Math.random()*1.0);
+    inst.rotation.y = Math.random() * Math.PI * 2;
+  }
+
+  const waterMat = new BABYLON.PBRMaterial("waterMat", this.scene);
+  waterMat.albedoTexture = makeWaterTexture(this.scene);
+  waterMat.albedoColor = new BABYLON.Color3(0.1, 0.3, 0.55);
+  waterMat.metallic = 0.9;
+  waterMat.roughness = 0.05;
+  waterMat.alpha = 0.85;
+  waterMat.emissiveColor = new BABYLON.Color3(0.02, 0.08, 0.15);
+
+  const pond1 = BABYLON.MeshBuilder.CreateDisc("pond1", { radius: 6, tessellation: 24 }, this.scene);
+  pond1.rotation.x = Math.PI/2;
+  pond1.position.set(-35, 0.05, -35);
+  pond1.material = waterMat;
+  pond1.isPickable = false;
+
+  const pond2 = BABYLON.MeshBuilder.CreateDisc("pond2", { radius: 6, tessellation: 24 }, this.scene);
+  pond2.rotation.x = Math.PI/2;
+  pond2.position.set(35, 0.05, 35);
+  pond2.material = waterMat;
+  pond2.isPickable = false;
+
+  this.waterPonds = [pond1, pond2];
+};
+
+Game.prototype._setupBasesAndTowers = function() {
+  const blueBase = createBaseModel(this.scene, new BABYLON.Color3(0.2, 0.55, 1));
+  blueBase.position.set(-55, 0, -55);
+
+  const redBase = createBaseModel(this.scene, new BABYLON.Color3(1, 0.3, 0.3));
+  redBase.position.set(55, 0, 55);
+
+  // Templates
+  const blueTowerTpl = createTowerModelTemplate(this.scene, new BABYLON.Color3(0.2, 0.55, 1));
+  const redTowerTpl  = createTowerModelTemplate(this.scene, new BABYLON.Color3(1, 0.35, 0.35));
+  // Hide templates
+  blueTowerTpl.setEnabled(false);
+  redTowerTpl.setEnabled(false);
+
+  const L = CFG.MAP_SIZE/2 - 8;
+  const towerConfig = [
+    { x:-L, z:-42, t:0 }, { x:-L*0.55, z:-42, t:0 }, { x:-L*0.15, z:-42, t:0 },
+    { x:-L, z:42, t:0 }, { x:-L*0.55, z:42, t:0 }, { x:-L*0.15, z:42, t:0 },
+    { x:-L*0.75, z:-L*0.75, t:0 }, { x:-L*0.4, z:-L*0.4, t:0 }, { x:-L*0.1, z:-L*0.1, t:0 },
+    { x:L, z:-42, t:1 }, { x:L*0.55, z:-42, t:1 }, { x:L*0.15, z:-42, t:1 },
+    { x:L, z:42, t:1 }, { x:L*0.55, z:42, t:1 }, { x:L*0.15, z:42, t:1 },
+    { x:L*0.75, z:L*0.75, t:1 }, { x:L*0.4, z:L*0.4, t:1 }, { x:L*0.1, z:L*0.1, t:1 }
+  ];
+
+  this.towers = [];
+  for (let i=0;i<towerConfig.length;i++) {
+    const cfg = towerConfig[i];
+    const tpl = cfg.t === 0 ? blueTowerTpl : redTowerTpl;
+    const t = new Tower(this.scene, cfg.t, cfg.x, cfg.z, tpl);
+    this.towers.push(t);
+  }
+
+  // Dispose templates
+  blueTowerTpl.dispose();
+  redTowerTpl.dispose();
+};
+
+Game.prototype._setupHero = function() {
+  this.heroMesh = createHeroModel(this.scene);
+  this.heroMesh.position.set(-52, 0, -52);
+  this.heroMesh.getChildMeshes().forEach(function(m){
+    m.isPickable = false;
+  });
+
+  // Add hero to shadow caster
+  const children = this.heroMesh.getChildMeshes();
+  for (let i=0;i<children.length;i++) {
+    this.shadow.addShadowCaster(children[i]);
+  }
+
+  this.heroMovement = new HeroMovement(this.heroMesh, CFG.HERO_SPEED);
+  this.heroMovement.predicted.set(-52, 0, -52);
+};
+
+Game.prototype._setupMinionPools = function() {
+  const self = this;
+
+  // Create templates (blue & red) — persist, hidden
+  const blueTpl = createMinionModelTemplate(this.scene, new BABYLON.Color3(0.25, 0.5, 1));
+  const redTpl  = createMinionModelTemplate(this.scene, new BABYLON.Color3(1, 0.3, 0.3));
+  blueTpl.setEnabled(false);
+  redTpl.setEnabled(false);
+  this.blueTpl = blueTpl;
+  this.redTpl = redTpl;
+
+  this.minionPoolBlue = new ObjectPool(
+    function() { return new Minion(self.scene, 0, self.blueTpl); },
+    function(m) { m.die(); },
+    CFG.MINION_MAX / 2
+  );
+  this.minionPoolRed = new ObjectPool(
+    function() { return new Minion(self.scene, 1, self.redTpl); },
+    function(m) { m.die(); },
+    CFG.MINION_MAX / 2
+  );
+  this.activeMinions = [];
+};
+
+Game.prototype._setupPostFX = function() {
+  try {
+    if (this.pipeline) { this.pipeline.dispose(); this.pipeline = null; }
+    const pipeline = new BABYLON.DefaultRenderingPipeline(
+      "defaultPipeline", true, this.scene, [this.scene.activeCamera]
+    );
+    pipeline.samples = 4;
+    pipeline.fxaaEnabled = true;
+
+    if (pipeline.imageProcessing) {
+      pipeline.imageProcessingEnabled = true;
+      pipeline.imageProcessing.toneMappingEnabled = true;
+      pipeline.imageProcessing.toneMappingType = BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
+      pipeline.imageProcessing.exposure = 1.15;
+      pipeline.imageProcessing.contrast = 1.15;
+      pipeline.imageProcessing.vignetteEnabled = true;
+      pipeline.imageProcessing.vignetteWeight = 3.0;
+      pipeline.imageProcessing.vignetteColor = new BABYLON.Color4(0, 0, 0.05, 0);
+      pipeline.imageProcessing.vignetteBlendMode = BABYLON.ImageProcessingConfiguration.VIGNETTEMODE_MULTIPLY;
+    }
+
+    pipeline.bloomEnabled = true;
+    pipeline.bloomThreshold = 0.65;
+    pipeline.bloomWeight = 0.5;
+    pipeline.bloomKernel = 48;
+    pipeline.bloomScale = 0.5;
+
+    if (pipeline.grain) {
+      pipeline.grainEnabled = true;
+      pipeline.grain.intensity = 6;
+      pipeline.grain.animated = true;
+    }
+
+    this.pipeline = pipeline;
+  } catch (err) {
+    console.warn("Post FX failed, continuing without:", err);
+  }
+};
+
+Game.prototype._buildLanePaths = function() {
+  const L = CFG.MAP_SIZE/2 - 6;
+  const top = [{x:-L,z:-42},{x:-20,z:-42},{x:0,z:-42},{x:20,z:-42},{x:L,z:-42}];
+  const bot = [{x:-L,z:42},{x:-20,z:42},{x:0,z:42},{x:20,z:42},{x:L,z:42}];
+  const mid = [{x:-L,z:-L},{x:-L*0.5,z:-L*0.5},{x:0,z:0},{x:L*0.5,z:L*0.5},{x:L,z:L}];
+  return { top: top, bot: bot, mid: mid };
+};
+
+Game.prototype._updateCamera = function() {
+  const t = this.heroMesh.position;
+  const camX = t.x + 0.8;
+  const camZ = t.z - 18;
+  const camY = 22;
+  this.camera.position.x += (camX - this.camera.position.x) * 0.08;
+  this.camera.position.z += (camZ - this.camera.position.z) * 0.08;
+  this.camera.position.y += (camY - this.camera.position.y) * 0.08;
+  this.camera.setTarget(new BABYLON.Vector3(t.x, 1.8, t.z + 3));
+};
+
+Game.prototype.spawnWave = function() {
+  this.waveCount++;
+  const self = this;
+  const spawn = function(path, team, sx, sz) {
+    const pool = team === 0 ? self.minionPoolBlue : self.minionPoolRed;
+    const minion = pool.acquire();
+    minion.spawn(path, sx, sz);
+    self.activeMinions.push(minion);
+  };
+
+  const blueTop = this.lanePaths.top;
+  const blueBot = this.lanePaths.bot;
+  const blueMid = this.lanePaths.mid;
+  const redTop = this.lanePaths.top.slice().reverse();
+  const redBot = this.lanePaths.bot.slice().reverse();
+  const redMid = this.lanePaths.mid.slice().reverse();
+
+  const L = CFG.MAP_SIZE/2 - 6;
+
+  for (let i = 0; i < CFG.WAVE_SIZE; i++) {
+    spawn(blueTop, 0, -L + (i*0.4), -42);
+    spawn(blueBot, 0, -L + (i*0.4), 42);
+    spawn(blueMid, 0, -L + (i*0.4), -L + (i*0.4));
+    spawn(redTop, 1,  L - (i*0.4), -42);
+    spawn(redBot, 1,  L - (i*0.4), 42);
+    spawn(redMid, 1,  L - (i*0.4),  L - (i*0.4));
+  }
+};
+
+Game.prototype.update = function(dt) {
+  this.elapsed += dt;
+  this.acc += dt;
+  while (this.acc >= CFG.TICK) {
+    this._fixedUpdate(CFG.TICK);
+    this.acc -= CFG.TICK;
+  }
+  this.heroMovement.renderUpdate();
+  this._updateCamera();
+  this.joyMove.render();
+  this.joyAim.render();
+
+  for (let i=0;i<this.activeMinions.length;i++) this.activeMinions[i].update(0);
+  this.effects.update(dt);
+
+  if (this.waterPonds) {
+    const s = 1 + Math.sin(this.elapsed * 1.5) * 0.01;
+    this.waterPonds[0].scaling = new BABYLON.Vector3(s, s, 1);
+    this.waterPonds[1].scaling = new BABYLON.Vector3(s, s, 1);
+  }
+
+  for (let i=0;i<this.skills.length;i++) {
+    if (this.skills[i].cd > 0) this.skills[i].cd = Math.max(0, this.skills[i].cd - dt);
+  }
+  this._updateSkillUI();
+};
+
+Game.prototype._fixedUpdate = function(dt) {
+  this.waveTimer -= dt;
+  if (this.waveTimer <= 0) {
+    this.spawnWave();
+    this.waveTimer = CFG.WAVE_INTERVAL;
+  }
+
+  this.heroMovement.fixedUpdate(dt, this.joyMove.output);
+  this.gold += 2 * dt;
+
+  const self = this;
+  for (let i = this.activeMinions.length - 1; i >= 0; i--) {
+    const m = this.activeMinions[i];
+    m.update(dt);
+
+    if (!m.alive) {
+      const d = Math.hypot(
+        m.mesh.position.x - this.heroMesh.position.x,
+        m.mesh.position.z - this.heroMesh.position.z
+      );
+      if (d < 18) {
+        this.gold += 6;
+        this.effects.spawnParticleBurst(m.mesh.position.clone(), new BABYLON.Color3(0.4, 0.7, 1));
+      }
+      const pool = m.team === 0 ? this.minionPoolBlue : this.minionPoolRed;
+      pool.release(m);
+      this.activeMinions.splice(i, 1);
+      continue;
+    }
+
+    for (let j=0;j<this.towers.length;j++) {
+      const tower = this.towers[j];
+      if (tower.team === m.team) continue;
+      const d = Math.hypot(
+        m.mesh.position.x - tower.pos.x,
+        m.mesh.position.z - tower.pos.z
+      );
+      if (d < 2.5) {
+        tower.hp -= 50 * dt;
+        m.damage(70 * dt);
+      }
+    }
+  }
+
+  for (let j=0;j<this.towers.length;j++) {
+    const tower = this.towers[j];
+    tower.update(dt, this.activeMinions, function(target, dmg, pos) {
+      target.damage(dmg);
+      // Beam
+      const beam = BABYLON.MeshBuilder.CreateCylinder("beam", { height: 1, diameter: 0.25, tessellation:6 }, self.scene);
+      const dx = target.mesh.position.x - pos.x;
+      const dz = target.mesh.position.z - pos.z;
+      const dist = Math.hypot(dx, dz);
+      beam.position.set((pos.x + target.mesh.position.x)/2, 6, (pos.z + target.mesh.position.z)/2);
+      beam.rotation.z = Math.PI/2;
+      beam.rotation.y = -Math.atan2(dz, dx);
+      beam.scaling.y = dist;
+      const bm = new BABYLON.StandardMaterial("bm_" + Math.random(), self.scene);
+      bm.emissiveColor = tower.team === 0
+        ? new BABYLON.Color3(0.4, 0.8, 1)
+        : new BABYLON.Color3(1, 0.5, 0.5);
+      bm.diffuseColor = new BABYLON.Color3(0,0,0);
+      bm.alpha = 0.9;
+      bm.disableLighting = true;
+      beam.material = bm;
+      beam.isPickable = false;
+      self.effects.fx.push({ mesh:beam, mat:bm, life:0.15, maxLife:0.15 });
+      self.effects.spawnImpact(target.mesh.position.clone(), bm.emissiveColor, 1.2, 0.25);
+    });
+  }
+};
+
+Game.prototype.castSkill = function(slot) {
+  const s = this.skills[slot - 1];
+  if (s.cd > 0) return;
+  s.cd = s.max;
+
+  const aim = this.joyAim.output;
+  const rot = this.heroMesh.rotation.y;
+  const dirX = aim.active ? aim.x : Math.sin(rot);
+  const dirZ = aim.active ? aim.y : Math.cos(rot);
+
+  const heroPos = this.heroMesh.position.clone();
+  heroPos.y = 1.0;
+
+  if (slot === 1) {
+    this._spawnProjectile(heroPos, dirX, dirZ, 18, 18, 120, new BABYLON.Color3(0.4, 0.9, 1), 1);
+  } else if (slot === 2) {
+    const dist = 8;
+    this.heroMovement.predicted.x += dirX * dist;
+    this.heroMovement.predicted.z += dirZ * dist;
+    this.effects.spawnParticleBurst(heroPos, new BABYLON.Color3(0.4, 0.9, 1));
+  } else if (slot === 3) {
+    this._spawnProjectile(heroPos, dirX, dirZ, 22, 30, 450, new BABYLON.Color3(1, 0.8, 0.2), 2.5);
+  }
+};
+
+Game.prototype._spawnProjectile = function(start, dirX, dirZ, speed, range, damage, color, size) {
+  size = size || 1;
+  const scene = this.scene;
+  const self = this;
+  const proj = BABYLON.MeshBuilder.CreateSphere("proj", { diameter: 0.9 * size, segments: 12 }, scene);
+  proj.position.copyFrom(start);
+  const pm = new BABYLON.StandardMaterial("pm_" + Math.random(), scene);
+  pm.emissiveColor = color;
+  pm.diffuseColor = new BABYLON.Color3(0,0,0);
+  pm.disableLighting = true;
+  proj.material = pm;
+  proj.isPickable = false;
+
+  const trail = new BABYLON.ParticleSystem("trail_" + Math.random(), 60, scene);
+  trail.emitter = proj;
+  trail.minEmitBox = new BABYLON.Vector3(-0.1, -0.1, -0.1);
+  trail.maxEmitBox = new BABYLON.Vector3(0.1, 0.1, 0.1);
+  trail.color1 = new BABYLON.Color4(color.r, color.g, color.b, 1);
+  trail.color2 = new BABYLON.Color4(color.r*0.7, color.g*0.7, color.b*0.7, 1);
+  trail.colorDead = new BABYLON.Color4(color.r, color.g, color.b, 0);
+  trail.minSize = 0.1; trail.maxSize = 0.35;
+  trail.minLifeTime = 0.2; trail.maxLifeTime = 0.45;
+  trail.emitRate = 80;
+  trail.blendMode = BABYLON.ParticleSystem.BLENDMODE_ONEONE;
+  trail.minEmitPower = 0.2; trail.maxEmitPower = 0.5;
+  trail.updateSpeed = 0.02;
+  trail.start();
+
+  let traveled = 0;
+  const step = function() {
+    const d = self.engine.getDeltaTime() / 1000;
+    const mx = dirX * speed * d;
+    const mz = dirZ * speed * d;
+    proj.position.x += mx;
+    proj.position.z += mz;
+    traveled += Math.hypot(mx, mz);
+
+    for (let i=0;i<self.activeMinions.length;i++) {
+      const m = self.activeMinions[i];
+      if (!m.alive) continue;
+      const dd = Math.hypot(
+        m.mesh.position.x - proj.position.x,
+        m.mesh.position.z - proj.position.z
+      );
+      if (dd < 1.2 * size) {
+        m.damage(damage);
+        self.effects.spawnImpact(m.mesh.position.clone(), color, 1.8, 0.3);
+        self.effects.spawnParticleBurst(m.mesh.position.clone(), color);
+        cleanup();
+        return;
+      }
+    }
+    if (traveled > range) cleanup();
+  };
+  const cleanup = function() {
+    proj.dispose(); pm.dispose();
+    trail.stop();
+    setTimeout(function(){ trail.dispose(); }, 500);
+    scene.onBeforeRenderObservable.remove(cb);
+  };
+  const cb = scene.onBeforeRenderObservable.add(step);
+};
+
+Game.prototype._updateSkillUI = function() {
+  for (let i = 0; i < 3; i++) {
+    const s = this.skills[i];
+    const el = document.getElementById("cd" + (i + 1));
+    if (!el) continue;
+    if (s.cd > 0) {
+      el.classList.add("on");
+      el.textContent = s.cd.toFixed(1);
+    } else {
+      el.classList.remove("on");
+    }
+  }
+};
+
+/* ---------- BOOTSTRAP ---------- */
+(function main() {
+  try {
+    const canvas = document.getElementById("renderCanvas");
+    const display = new DisplayManager(canvas);
+    const game = new Game(display.engine, canvas);
+
+    // Post FX after camera is set
+    game._setupPostFX();
+
+    // Loop
+    let frames = 0, fpsTimer = 0;
+    const fpsEl = document.getElementById("fps");
+    const minionEl = document.getElementById("minionCount");
+
+    display.engine.runRenderLoop(function() {
+      const dt = Math.min(0.1, display.engine.getDeltaTime() / 1000);
+      game.update(dt);
+      game.scene.render();
+
+      frames++; fpsTimer += dt;
+      if (fpsTimer >= 1) {
+        if (fpsEl) fpsEl.textContent = Math.round(frames / fpsTimer);
+        if (minionEl) minionEl.textContent = game.activeMinions.length;
+        frames = 0; fpsTimer = 0;
+      }
+    });
+
+    // Timer
+    const timerEl = document.getElementById("timer");
+    setInterval(function() {
+      const m = Math.floor(game.elapsed / 60).toString().padStart(2, "0");
+      const s = Math.floor(game.elapsed % 60).toString().padStart(2, "0");
+      if (timerEl) timerEl.textContent = m + ":" + s;
+    }, 250);
+
+    // Gold / level
+    setInterval(function() {
+      const goldEl = document.getElementById("gold");
+      const lvlEl = document.getElementById("lvl");
+      if (goldEl) goldEl.textContent = "💰 " + Math.floor(game.gold);
+      const newLvl = Math.floor(game.gold / 500) + 1;
+      if (newLvl !== game.lvl) game.lvl = newLvl;
+      if (lvlEl) lvlEl.textContent = game.lvl;
+    }, 200);
+
+    // Skill buttons
+    const skillEls = document.querySelectorAll(".skill");
+    for (let i=0;i<skillEls.length;i++) {
+      (function(el) {
+        el.addEventListener("pointerdown", function(e) {
+          e.preventDefault();
+          const slot = parseInt(el.dataset.slot, 10);
+          el.classList.add("active");
+          setTimeout(function(){ el.classList.remove("active"); }, 120);
+          game.castSkill(slot);
+        });
+      })(skillEls[i]);
+    }
+
+    // Start button
+    const startBtn = document.getElementById("startBtn");
+    if (startBtn) {
+      startBtn.addEventListener("click", function() {
+        document.getElementById("fsHint").classList.add("hidden");
+        display.requestFullscreen();
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock("landscape").catch(function(){});
+        }
+      });
+    }
+
+    // Keyboard for desktop
+    const keys = {};
+    window.addEventListener("keydown", function(e){ keys[e.key.toLowerCase()] = true; });
+    window.addEventListener("keyup",   function(e){ keys[e.key.toLowerCase()] = false; });
+
+    setInterval(function() {
+      let kx = 0, kz = 0;
+      if (keys["a"]) kx -= 1;
+      if (keys["d"]) kx += 1;
+      if (keys["w"]) kz -= 1;
+      if (keys["s"]) kz += 1;
+      if (kx || kz) {
+        const mag = Math.min(1, Math.hypot(kx, kz));
+        game.joyMove.output = { x:kx, y:kz, magnitude:mag, active:true };
+      } else if (game.joyMove.activePointerId === null) {
+        game.joyMove.output = { x:0, y:0, magnitude:0, active:false };
+      }
+    }, 16);
+
+    window.addEventListener("keydown", function(e) {
+      if (e.key === "1") game.castSkill(1);
+      if (e.key === "2") game.castSkill(2);
+      if (e.key === "3") game.castSkill(3);
+    });
+
+    console.log("%c⚔️ MOBA Web — Fixed Edition ready", "color:#6ab0ff;font-size:14px;font-weight:bold");
+    console.log("Tekan 'MULAI PERTEMPURAN' atau gunakan WASD + 1/2/3 (desktop)");
+  } catch (err) {
+    console.error("Bootstrap error:", err);
+    const box = document.getElementById("errorBox");
+    if (box) {
+      box.style.display = "block";
+      box.textContent = "BOOTSTRAP ERROR: " + err.message + "\n" + err.stack;
+    }
+  }
+})();
+</script>
+</body>
+</html>
